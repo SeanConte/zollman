@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cognitive Labor Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: controls | network | charts on wide screens; stacks on narrow. Batch comparison spans the bottom. */
+:root {
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --ink: #17202b;
+  --muted: #5d6877;
+  --line: #d5dbe3;
+  --old: #3f6e9c;      /* old method */
+  --new: #c97a1e;      /* new method */
+  --mid: #c3c9d2;      /* undecided */
+  --good: #2f7d4f;
+  --bad: #b23b3b;
+  --font-display: "IBM Plex Serif", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --panel: #1b222b; --ink: #e6ebf1; --muted: #98a3b1; --line: #2e3844;
+    --old: #6c9ccc; --new: #e39a45; --mid: #4a5562; --good: #5bb37f; --bad: #e06b6b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --panel: #1b222b; --ink: #e6ebf1; --muted: #98a3b1; --line: #2e3844;
+  --old: #6c9ccc; --new: #e39a45; --mid: #4a5562; --good: #5bb37f; --bad: #e06b6b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1400px; margin: 0 auto; padding: 20px 20px 32px; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 18px; margin: 0 0 10px; }
+.main { display: grid; grid-template-columns: 290px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .main { grid-template-columns: 290px minmax(0, 1fr); } .charts { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.controls { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; }
+.field label, .field .lbl { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.field output { font-family: var(--font-mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+input[type="range"] { width: 100%; accent-color: var(--new); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 8px 4px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); font-weight: 600; }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button.btn { font: inherit; font-size: 14px; font-weight: 500; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button.btn:hover { border-color: var(--muted); }
+button.btn.primary { background: var(--new); border-color: var(--new); color: #fff; font-weight: 600; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--new); outline-offset: 2px; }
+.model { font-size: 13.5px; border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.model p { margin: 0; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.chip { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.chip.good { background: var(--good); border-color: var(--good); color: #fff; }
+.chip.bad { background: var(--bad); border-color: var(--bad); color: #fff; }
+#net { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); align-items: center; margin-top: 6px; }
+.ramp { width: 120px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--old), var(--mid), var(--new)); }
+.ring { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--ink); display: inline-block; vertical-align: -2px; }
+.charts { display: grid; gap: 16px; }
+.chartbox canvas { width: 100%; display: block; }
+.chartbox h2 { margin-bottom: 4px; }
+.chartbox .hint { margin-bottom: 8px; }
+.batch-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.batch-head p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 70ch; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 14px; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+td.num { font-family: var(--font-mono); }
+.barrow { display: flex; align-items: center; gap: 10px; }
+.bar { position: relative; flex: 1; height: 18px; background: var(--bg); border-radius: 4px; overflow: hidden; min-width: 120px; }
+.bar span { position: absolute; inset: 0 auto 0 0; background: var(--good); }
+.bar.badbar span { background: var(--bad); }
+.barrow em { font-style: normal; font-family: var(--font-mono); font-size: 13px; min-width: 6ch; text-align: right; }
+progress { width: 160px; accent-color: var(--new); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cognitive Labor Lab</h1>
+    <p>A Zollman-style network model of scientists choosing between an old method and a new one.</p>
+  </header>
+
+  <div class="main">
+    <section class="panel controls" aria-label="Controls">
+      <div class="field">
+        <span class="lbl">Communication network</span>
+        <div class="seg" role="group" aria-label="Network">
+          <button type="button" id="net-complete" data-net="complete" aria-pressed="true">Complete</button>
+          <button type="button" id="net-wheel" data-net="wheel" aria-pressed="false">Wheel</button>
+          <button type="button" id="net-cycle" data-net="cycle" aria-pressed="false">Cycle</button>
+        </div>
+        <p class="hint">Switching networks keeps the same scientists and starting beliefs.</p>
+      </div>
+      <div class="field">
+        <label for="n-agents">Scientists <output id="o-agents">10</output></label>
+        <input type="range" id="n-agents" min="4" max="20" step="1" value="10">
+      </div>
+      <div class="field">
+        <label for="eps">New method success rate <output id="o-eps">55%</output></label>
+        <input type="range" id="eps" min="0.01" max="0.15" step="0.01" value="0.05">
+        <p class="hint">The old method succeeds 50% of the time, and everyone knows it.</p>
+      </div>
+      <div class="field">
+        <label for="trials">Trials per round <output id="o-trials">10</output></label>
+        <input type="range" id="trials" min="1" max="50" step="1" value="10">
+      </div>
+      <div class="field">
+        <label for="lo">Starting credence, lowest <output id="o-lo">0.30</output></label>
+        <input type="range" id="lo" min="0" max="0.5" step="0.05" value="0.3">
+        <label for="hi">Starting credence, highest <output id="o-hi">0.70</output></label>
+        <input type="range" id="hi" min="0.5" max="1" step="0.05" value="0.7">
+      </div>
+      <div class="field">
+        <label for="speed">Speed <output id="o-speed">4 rounds/s</output></label>
+        <input type="range" id="speed" min="1" max="30" step="1" value="4">
+      </div>
+      <div class="btns">
+        <button type="button" class="btn primary" id="run">Run</button>
+        <button type="button" class="btn" id="step">Step one round</button>
+        <button type="button" class="btn" id="reset">Replay same start</button>
+        <button type="button" class="btn" id="fresh">New scientists</button>
+      </div>
+      <div class="model">
+        <p><strong>The model.</strong> A scientist uses the new method only if their credence that it beats the old one is above 0.5. Each round, new-method users run their trials. Everyone then updates by Bayes' rule on their own results and their neighbors' results.</p>
+        <p>Scientists on the old method learn nothing new about the new one. If everyone drops below 0.5, the community stops testing it for good.</p>
+        <p class="hint">Hypotheses: the new method succeeds at 50% + ε or 50% − ε. The community settles when everyone is above 0.99 or everyone is at or below 0.5.</p>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Network view">
+      <div class="status">
+        <span class="chip" id="chip-round">Round 0</span>
+        <span class="chip" id="chip-labor">0 of 10 on new method</span>
+        <span class="chip" id="chip-outcome" hidden></span>
+      </div>
+      <svg id="net" viewBox="0 0 500 500" role="img" aria-label="Network of scientists colored by credence"></svg>
+      <div class="legend">
+        <span>Favors old</span><span class="ramp" aria-hidden="true"></span><span>Favors new</span>
+        <span><span class="ring" aria-hidden="true"></span> using new method this round</span>
+        <span><span style="font-family:var(--font-mono);color:var(--ink)">7/10</span> successes this round</span>
+      </div>
+    </section>
+
+    <section class="charts">
+      <div class="panel chartbox">
+        <h2>Credence that the new method is better</h2>
+        <p class="hint">One line per scientist. Above the dashed line, they use the new method.</p>
+        <canvas id="c-cred" height="220" aria-label="Credence over rounds"></canvas>
+      </div>
+      <div class="panel chartbox">
+        <h2>Division of labor</h2>
+        <p class="hint">Share of the community working on the new method each round.</p>
+        <canvas id="c-labor" height="150" aria-label="Share on new method over rounds"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="Batch comparison">
+    <div class="batch-head">
+      <div>
+        <h2>Run many communities</h2>
+        <p>Each run draws fresh starting beliefs and gives the same draws to all three networks, using the settings above. A run stops when the community settles or after 5,000 rounds.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label for="batch-n" class="hint">Runs per network</label>
+        <select id="batch-n" class="btn" style="padding:7px 8px">
+          <option value="100">100</option>
+          <option value="500" selected>500</option>
+          <option value="1000">1,000</option>
+        </select>
+        <button type="button" class="btn primary" id="batch">Run comparison</button>
+        <progress id="batch-prog" max="1" value="0" hidden></progress>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Network</th><th>Found the better method</th><th>Abandoned it</th><th>Avg. rounds to settle</th></tr></thead>
+        <tbody id="batch-body">
+          <tr><td>Complete</td><td colspan="3" class="hint">Not run yet</td></tr>
+          <tr><td>Wheel</td><td colspan="3" class="hint">Not run yet</td></tr>
+          <tr><td>Cycle</td><td colspan="3" class="hint">Not run yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var NETS = ["complete", "wheel", "cycle"];
+  var NAMES = { complete: "Complete", wheel: "Wheel", cycle: "Cycle" };
+
+  var S = {
+    net: "complete", N: 10, eps: 0.05, n: 10, lo: 0.3, hi: 0.7, speed: 4,
+    priors: [], cred: [], round: 0, results: [], history: [], laborHist: [],
+    outcome: null, running: false
+  };
+
+  // ---------- model ----------
+  function neighbors(type, N) {
+    var nb = []; for (var i = 0; i < N; i++) nb.push([]);
+    function add(a, b) { nb[a].push(b); nb[b].push(a); }
+    if (type === "complete") { for (var a = 0; a < N; a++) for (var b = a + 1; b < N; b++) add(a, b); }
+    else if (type === "cycle") { for (var c = 0; c < N; c++) add(c, (c + 1) % N); }
+    else if (type === "wheel") { for (var w = 1; w < N; w++) { add(0, w); add(w, w === N - 1 ? 1 : w + 1); } }
+    return nb;
+  }
+  function binom(n, p) { var k = 0; for (var i = 0; i < n; i++) if (Math.random() < p) k++; return k; }
+  function drawPriors(N, lo, hi) { var p = []; for (var i = 0; i < N; i++) p.push(lo + (hi - lo) * Math.random()); return p; }
+
+  // One round: returns {cred, results}
+  function stepModel(cred, nb, eps, n) {
+    var N = cred.length, res = new Array(N), lr = Math.log((0.5 + eps) / (0.5 - eps)), out = new Array(N);
+    for (var i = 0; i < N; i++) res[i] = cred[i] > 0.5 ? binom(n, 0.5 + eps) : null;
+    for (var j = 0; j < N; j++) {
+      var x = Math.min(Math.max(cred[j], 1e-12), 1 - 1e-12), lo = Math.log(x / (1 - x));
+      if (res[j] !== null) lo += lr * (2 * res[j] - n);
+      for (var k = 0; k < nb[j].length; k++) { var r = res[nb[j][k]]; if (r !== null) lo += lr * (2 * r - n); }
+      out[j] = 1 / (1 + Math.exp(-lo));
+    }
+    return { cred: out, results: res };
+  }
+  function settled(cred) {
+    var allLow = true, allHigh = true;
+    for (var i = 0; i < cred.length; i++) { if (cred[i] > 0.5) allLow = false; if (cred[i] <= 0.99) allHigh = false; }
+    return allHigh ? "good" : allLow ? "bad" : null;
+  }
+
+  // ---------- state ----------
+  var NB = neighbors(S.net, S.N);
+  function startFrom(priors) {
+    S.priors = priors.slice(); S.cred = priors.slice(); S.round = 0;
+    S.results = new Array(S.N).fill(null); S.outcome = settled(S.cred);
+    S.history = [S.cred.slice()]; S.laborHist = [countNew(S.cred)];
+    NB = neighbors(S.net, S.N);
+    stop(); render();
+  }
+  function countNew(c) { var k = 0; for (var i = 0; i < c.length; i++) if (c[i] > 0.5) k++; return k; }
+  function doRound() {
+    if (S.outcome) return;
+    var r = stepModel(S.cred, NB, S.eps, S.n);
+    S.results = S.cred.map(function (c, i) { return r.results[i]; });
+    S.cred = r.cred; S.round++;
+    S.history.push(S.cred.slice()); S.laborHist.push(countNew(S.cred));
+    S.outcome = settled(S.cred);
+    if (S.outcome) stop();
+    render();
+  }
+
+  // ---------- run loop ----------
+  var timer = null;
+  function start() { if (S.outcome) return; S.running = true; $("run").textContent = "Pause"; tick(); }
+  function tick() { clearTimeout(timer); if (!S.running) return; doRound(); if (S.running) timer = setTimeout(tick, 1000 / S.speed); }
+  function stop() { S.running = false; clearTimeout(timer); $("run").textContent = "Run"; }
+
+  // ---------- colors ----------
+  function hexToRgb(h) { h = h.trim().replace("#", ""); if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join(""); var v = parseInt(h, 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  var C = {};
+  function readColors() { ["--old", "--new", "--mid", "--ink", "--muted", "--line", "--panel", "--bg", "--good", "--bad"].forEach(function (k) { C[k] = css(k); }); }
+  function credColor(c) {
+    var a, b, t;
+    if (c <= 0.5) { a = hexToRgb(C["--old"]); b = hexToRgb(C["--mid"]); t = c / 0.5; }
+    else { a = hexToRgb(C["--mid"]); b = hexToRgb(C["--new"]); t = (c - 0.5) / 0.5; }
+    t = Math.pow(t, 0.8);
+    return "rgb(" + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t); }).join(",") + ")";
+  }
+  function textOn(c) { var m = c.match(/\d+/g).map(Number); var L = (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]); return L > 150 ? "#17202b" : "#ffffff"; }
+
+  // ---------- network drawing ----------
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function positions() {
+    var N = S.N, cx = 250, cy = 250, R = 185, pos = [];
+    if (S.net === "wheel") {
+      pos.push([cx, cy]);
+      for (var i = 1; i < N; i++) { var a = -Math.PI / 2 + 2 * Math.PI * (i - 1) / (N - 1); pos.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]); }
+    } else {
+      for (var j = 0; j < N; j++) { var b = -Math.PI / 2 + 2 * Math.PI * j / N; pos.push([cx + R * Math.cos(b), cy + R * Math.sin(b)]); }
+    }
+    return pos;
+  }
+  function el(tag, attrs, parent) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function drawNet() {
+    var svg = $("net"); while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var pos = positions(), N = S.N, r = N <= 12 ? 24 : N <= 16 ? 20 : 17;
+    var gE = el("g", {}, svg);
+    for (var i = 0; i < N; i++) for (var t = 0; t < NB[i].length; t++) {
+      var j = NB[i][t]; if (j < i) continue;
+      var active = S.results[i] !== null || S.results[j] !== null;
+      el("line", { x1: pos[i][0], y1: pos[i][1], x2: pos[j][0], y2: pos[j][1], stroke: active && S.round > 0 ? C["--new"] : C["--line"], "stroke-width": active && S.round > 0 ? 1.8 : 1.2, "stroke-opacity": active && S.round > 0 ? 0.55 : 1 }, gE);
+    }
+    for (var k = 0; k < N; k++) {
+      var c = S.cred[k], fill = credColor(c), g = el("g", {}, svg);
+      if (c > 0.5) el("circle", { cx: pos[k][0], cy: pos[k][1], r: r + 5, fill: "none", stroke: C["--ink"], "stroke-width": 3 }, g);
+      el("circle", { cx: pos[k][0], cy: pos[k][1], r: r, fill: fill, stroke: C["--panel"], "stroke-width": 2 }, g);
+      var tx = el("text", { x: pos[k][0], y: pos[k][1] + 4.5, "text-anchor": "middle", "font-family": "IBM Plex Mono, monospace", "font-size": r >= 24 ? 13 : 11, "font-weight": 500, fill: textOn(fill) }, g);
+      tx.textContent = c.toFixed(2).replace(/^0/, "");
+      if (S.round > 0 && S.results[k] !== null) {
+        var dx = pos[k][0] - 250, dy = pos[k][1] - 250, d = Math.hypot(dx, dy);
+        var ox, oy; if (d < 1) { ox = pos[k][0]; oy = pos[k][1] - r - 16; } else { ox = pos[k][0] + dx / d * (r + 24); oy = pos[k][1] + dy / d * (r + 24) + 4; }
+        var lab = el("text", { x: ox, y: oy, "text-anchor": "middle", "font-family": "IBM Plex Mono, monospace", "font-size": 12.5, "font-weight": 500, fill: C["--ink"] }, g);
+        lab.textContent = S.results[k] + "/" + S.n;
+      }
+    }
+  }
+
+  // ---------- charts ----------
+  function setupCanvas(cv) {
+    var w = cv.clientWidth, h = parseInt(cv.getAttribute("height"), 10), dpr = window.devicePixelRatio || 1;
+    if (!cv._h) cv._h = h;
+    h = cv._h; cv.style.height = h + "px"; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return { ctx: ctx, w: w, h: h };
+  }
+  function niceMax(r) { var steps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000]; for (var i = 0; i < steps.length; i++) if (r <= steps[i]) return steps[i]; return Math.ceil(r / 50000) * 50000; }
+  function axes(ctx, w, h, pad, xMax, yTicks, yFmt) {
+    ctx.font = "12px IBM Plex Sans, system-ui, sans-serif"; ctx.fillStyle = C["--muted"]; ctx.strokeStyle = C["--line"]; ctx.lineWidth = 1;
+    yTicks.forEach(function (v) { var y = pad.t + (1 - v) * (h - pad.t - pad.b); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke(); ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(yFmt(v), pad.l - 6, y); });
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach(function (f) { var x = pad.l + f * (w - pad.l - pad.r); ctx.fillText(String(Math.round(f * xMax)), x, h - pad.b + 5); });
+    ctx.textAlign = "right"; ctx.fillText("round", w - pad.r, h - pad.b + 20);
+  }
+  function drawCred() {
+    var s = setupCanvas($("c-cred")), ctx = s.ctx, w = s.w, h = s.h, pad = { l: 36, r: 10, t: 8, b: 38 };
+    ctx.clearRect(0, 0, w, h);
+    var xMax = niceMax(Math.max(S.round, 10));
+    axes(ctx, w, h, pad, xMax, [0, 0.25, 0.5, 0.75, 1], function (v) { return v.toFixed(2).replace(/^0/, ""); });
+    var X = function (i) { return pad.l + i / xMax * (w - pad.l - pad.r); }, Y = function (v) { return pad.t + (1 - v) * (h - pad.t - pad.b); };
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = C["--muted"]; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(pad.l, Y(0.5)); ctx.lineTo(w - pad.r, Y(0.5)); ctx.stroke(); ctx.setLineDash([]);
+    var H = S.history, stride = Math.max(1, Math.floor(H.length / 800));
+    for (var a = 0; a < S.N; a++) {
+      ctx.strokeStyle = credColor(S.cred[a]); ctx.globalAlpha = 0.85; ctx.lineWidth = 1.6; ctx.beginPath();
+      for (var t = 0; t < H.length; t += stride) { var x = X(t), y = Y(H[t][a]); if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      var last = H.length - 1; ctx.lineTo(X(last), Y(H[last][a])); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = credColor(S.cred[a]); ctx.beginPath(); ctx.arc(X(last), Y(H[last][a]), 2.6, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawLabor() {
+    var s = setupCanvas($("c-labor")), ctx = s.ctx, w = s.w, h = s.h, pad = { l: 36, r: 10, t: 8, b: 38 };
+    ctx.clearRect(0, 0, w, h);
+    var xMax = niceMax(Math.max(S.round, 10));
+    axes(ctx, w, h, pad, xMax, [0, 0.5, 1], function (v) { return Math.round(v * 100) + "%"; });
+    var X = function (i) { return pad.l + i / xMax * (w - pad.l - pad.r); }, Y = function (v) { return pad.t + (1 - v) * (h - pad.t - pad.b); };
+    var L = S.laborHist, stride = Math.max(1, Math.floor(L.length / 800));
+    ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+    for (var t = 0; t < L.length; t += stride) { ctx.lineTo(X(t), Y(L[t] / S.N)); if (t + stride < L.length) ctx.lineTo(X(t + stride), Y(L[t] / S.N)); }
+    var last = L.length - 1; ctx.lineTo(X(last), Y(L[last] / S.N)); ctx.lineTo(X(last), Y(0)); ctx.closePath();
+    ctx.globalAlpha = 0.25; ctx.fillStyle = C["--new"]; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.beginPath();
+    for (var u = 0; u < L.length; u += stride) { var x = X(u), y = Y(L[u] / S.N); if (u === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); if (u + stride < L.length) ctx.lineTo(X(u + stride), y); }
+    ctx.lineTo(X(last), Y(L[last] / S.N));
+    ctx.strokeStyle = C["--new"]; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = C["--new"]; ctx.beginPath(); ctx.arc(X(last), Y(L[last] / S.N), 3.2, 0, 7); ctx.fill();
+  }
+
+  // ---------- render ----------
+  function render() {
+    readColors();
+    drawNet(); drawCred(); drawLabor();
+    $("chip-round").textContent = "Round " + S.round;
+    $("chip-labor").textContent = countNew(S.cred) + " of " + S.N + " on new method";
+    var oc = $("chip-outcome");
+    if (S.outcome === "good") { oc.hidden = false; oc.className = "chip good"; oc.textContent = "Settled on the better method"; }
+    else if (S.outcome === "bad") { oc.hidden = false; oc.className = "chip bad"; oc.textContent = "Abandoned the better method"; }
+    else oc.hidden = true;
+  }
+
+  // ---------- controls ----------
+  function setNet(type) {
+    S.net = type;
+    NETS.forEach(function (t) { $("net-" + t).setAttribute("aria-pressed", t === type ? "true" : "false"); });
+    startFrom(S.priors);
+  }
+  NETS.forEach(function (t) { $("net-" + t).addEventListener("click", function () { setNet(t); }); });
+
+  $("n-agents").addEventListener("input", function (e) { S.N = +e.target.value; $("o-agents").textContent = S.N; startFrom(drawPriors(S.N, S.lo, S.hi)); });
+  $("eps").addEventListener("input", function (e) { S.eps = +e.target.value; $("o-eps").textContent = Math.round((0.5 + S.eps) * 100) + "%"; startFrom(S.priors); });
+  $("trials").addEventListener("input", function (e) { S.n = +e.target.value; $("o-trials").textContent = S.n; startFrom(S.priors); });
+  function rangeChange() {
+    S.lo = +$("lo").value; S.hi = +$("hi").value;
+    $("o-lo").textContent = S.lo.toFixed(2); $("o-hi").textContent = S.hi.toFixed(2);
+    startFrom(drawPriors(S.N, S.lo, S.hi));
+  }
+  $("lo").addEventListener("input", rangeChange); $("hi").addEventListener("input", rangeChange);
+  $("speed").addEventListener("input", function (e) { S.speed = +e.target.value; $("o-speed").textContent = S.speed + " rounds/s"; });
+  $("run").addEventListener("click", function () { if (S.running) stop(); else start(); });
+  $("step").addEventListener("click", function () { stop(); doRound(); });
+  $("reset").addEventListener("click", function () { startFrom(S.priors); });
+  $("fresh").addEventListener("click", function () { startFrom(drawPriors(S.N, S.lo, S.hi)); });
+
+  // ---------- batch ----------
+  var batchBusy = false;
+  function runOne(priors, type, MAX) {
+    var nb = neighbors(type, priors.length), c = priors.slice(), o = settled(c);
+    if (o) return [o, 0];
+    for (var r = 1; r <= MAX; r++) { c = stepModel(c, nb, S.eps, S.n).cred; o = settled(c); if (o) return [o, r]; }
+    return ["none", MAX];
+  }
+  function batchRow(name, st, T) {
+    var g = st.good / T * 100, b = st.bad / T * 100;
+    var settledRuns = st.good + st.bad, avg = settledRuns ? (st.rounds / settledRuns) : 0;
+    return "<tr><td>" + name + "</td>" +
+      "<td><div class=\"barrow\"><div class=\"bar\"><span style=\"width:" + g.toFixed(1) + "%\"></span></div><em>" + g.toFixed(1) + "%</em></div></td>" +
+      "<td><div class=\"barrow\"><div class=\"bar badbar\"><span style=\"width:" + b.toFixed(1) + "%\"></span></div><em>" + b.toFixed(1) + "%</em></div></td>" +
+      "<td class=\"num\">" + (settledRuns ? avg.toFixed(1) : "–") + (st.none ? " <span class=\"hint\">(" + st.none + " unsettled)</span>" : "") + "</td></tr>";
+  }
+  $("batch").addEventListener("click", function () {
+    if (batchBusy) return;
+    batchBusy = true; stop();
+    var T = +$("batch-n").value, MAX = 5000, done = 0, prog = $("batch-prog");
+    var stats = {}; NETS.forEach(function (t) { stats[t] = { good: 0, bad: 0, none: 0, rounds: 0 }; });
+    prog.hidden = false; prog.value = 0; $("batch").textContent = "Running…";
+    function chunk() {
+      var t0 = performance.now();
+      while (done < T && performance.now() - t0 < 30) {
+        var pri = drawPriors(S.N, S.lo, S.hi);
+        NETS.forEach(function (type) { var res = runOne(pri, type, MAX); stats[type][res[0]]++; if (res[0] !== "none") stats[type].rounds += res[1]; });
+        done++;
+      }
+      prog.value = done / T;
+      $("batch-body").innerHTML = NETS.map(function (t) { return batchRow(NAMES[t], stats[t], Math.max(done, 1)); }).join("");
+      if (done < T) setTimeout(chunk, 0);
+      else { batchBusy = false; prog.hidden = true; $("batch").textContent = "Run comparison"; }
+    }
+    chunk();
+  });
+
+  // ---------- theme + resize ----------
+  try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render); } catch (e) {}
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  var rz; window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(render, 80); });
+
+  startFrom(drawPriors(S.N, S.lo, S.hi));
+})();
+</script>
+</body>
+</html>
